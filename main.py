@@ -1,61 +1,97 @@
 from pathlib import Path
 import argparse
 
-def main():
+class colors:
+    WARNING = '\033[93m'
+    # FAIL = '\033[91m'
+    ENDLINE = '\033[0m'
 
-    input = setup()
-    dir_path = Path(input.Path)
-
-    if dir_path.is_dir() and input.recorsive:
-        files_to_edit = dir_path.glob('**/*.*')    
-        for file in files_to_edit:
-            word_replacer(file, input)
-
-    elif dir_path.is_file():
-        word_replacer(dir_path, input)
-
-    elif dir_path.is_dir():
-        print("Error 2: selected a direcory without -r argument")
-        exit(2)
-
-    else:
-        print("Error 1: wrong path")
-        exit(1)
-
-def word_replacer(file, dir):
-
-    initial_text = file.read_text()
-    replacement_text = initial_text.replace(dir.find, dir.replace)
-    file.write_text(replacement_text)
-    if dir.verbose:
-        print(f"modifying file \t {file}")
-
-def setup():
-    parser = argparse.ArgumentParser(prog='word_replacer',
-                                    description='Change one word with another in a text file (works also with directory recusively')
-    parser.add_argument('Path',
-                       metavar='path',
-                       type=str,
-                       help='path of the folder')
+def _parse_args():
+    parser = argparse.ArgumentParser(
+        prog='word_replacer',
+        description='Change one word with another in a text file (works also with directory recusively',
+    )
+    parser.add_argument('path',
+                        metavar='path',
+                        type=Path,
+                        help='path to file or folder')
     parser.add_argument('find',
-                       metavar='find word',
-                       type=str,
-                       help='the word/phrase that will be modified')
+                        metavar='find-word',
+                        type=str,
+                        help='the word/phrase that will be modified')
     parser.add_argument('replace',
-                       metavar='replace word',
-                       type=str,
-                       help='the replace word/phrase')
+                        metavar='replace-word',
+                        type=str,
+                        help='the replace word/phrase')
     parser.add_argument('-v',
-                       '--verbose',
-                       action='store_true',
-                       help='Execute the script verbosely')
+                        '--verbose',
+                        action='store_true',
+                        help='Execute the script verbosely')
+    parser.add_argument('-d',
+                        '--directory',
+                        action='store_true',
+                        help='Modify files in a directory')
     parser.add_argument('-r',
-                       '--recorsive',
-                       action='store_true',
-                       help='Search in a directory (and subdirectoy)')
+                        '--recursive',
+                        action='store_true',
+                        help='Search all subdirectories recursively. Requires "-d"')
 
     args = parser.parse_args()
+    _validate_args(args)
     return args
+
+def _validate_args(args: argparse.Namespace):
+    if not args.path.exists():
+        print('Path does not exist')
+    elif args.directory and not args.path.is_dir():
+        print('Not a directory path. Remove the "-d" flag to work with a single file')
+    elif not args.directory and args.path.is_dir():
+        print('Not a file path. Use the "-d" flag to work with a directory')
+    elif args.recursive and not args.directory:
+        print('Recursive mode cannot be used when working with a single file. '
+              'Use the "-d" flag to work with a directory')
+    else:
+        return
+    exit(1)
+
+
+def _replace_in_file(file: Path, target: str, replacement: str, verbose: bool):
+    if verbose:
+        print(f"modifying file \t {file}")
+    try: 
+        initial_text = file.read_text()
+    except UnicodeDecodeError:
+        if verbose:
+            print(f"{colors.WARNING}{file} is non-valid text file, skipping {colors.ENDLINE}")
+        return
+    except PermissionError:
+        if verbose:
+            print(f"{colors.WARNING}this user has no read permission for {file}, skipping{colors.ENDLINE}")
+        return
+    replacement_text = initial_text.replace(target, replacement)
+    try:
+        file.write_text(replacement_text)
+    except PermissionError:
+        if verbose:
+            print(f"{colors.WARNING}this user has no write permission for {file}, skipping{colors.ENDLINE}")
+        return
+
+def main():
+    args = _parse_args()
+
+    if args.directory:
+        files_to_edit = args.path.glob('**/*.*' if args.recursive else '*.*')
+    else:
+        files_to_edit = [args.path]
+
+    for file in files_to_edit:
+        if file.is_dir(): continue
+        _replace_in_file(
+            file,
+            target=args.find,
+            replacement=args.replace,
+            verbose=args.verbose,
+        )
 
 if __name__ == "__main__":
     main()
