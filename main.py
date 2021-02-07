@@ -58,22 +58,13 @@ def _validate_args(args: argparse.Namespace):
 def _replace_in_file(file: Path, target: str, replacement: str, verbose: bool):
     if verbose:
         print(f"modifying file \t {file}")
-    try: 
-        initial_text = file.read_text()
-    except UnicodeDecodeError:
-        if verbose:
-            print(f"{colors.WARNING}{file} is non-valid text file, skipping {colors.ENDLINE}")
-        return
-    except PermissionError:
-        if verbose:
-            print(f"{colors.WARNING}this user has no read permission for {file}, skipping{colors.ENDLINE}")
-        return
-    replacement_text = initial_text.replace(target, replacement)
     try:
+        initial_text = file.read_text()
+        replacement_text = initial_text.replace(target, replacement)
         file.write_text(replacement_text)
-    except PermissionError:
+    except (UnicodeDecodeError, PermissionError) as err:
         if verbose:
-            print(f"{colors.WARNING}this user has no write permission for {file}, skipping{colors.ENDLINE}")
+            print(f"{colors.WARNING}failed to modify file {file}:\n{err}, skipping{colors.ENDLINE}")
         return
 
 def main():
